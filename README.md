@@ -100,6 +100,6 @@ create fake tracks or fake artists. It uses deterministic randomness when
 handling.
 
 The script does not seed `promotion_impressions` or `promotion_events`.
-Those tables are runtime logs: the recommendation API should insert impressions
+Those tables are runtime logs: the recommendation API inserts impressions
 when promoted recommendations are served, and events when users click, stream,
 skip, or save.
