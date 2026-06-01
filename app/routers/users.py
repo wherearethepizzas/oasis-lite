@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.services.utils import execute_query
@@ -6,7 +7,7 @@ from app.services.utils import execute_query
 router = APIRouter()
 
 @router.get("/{user_id}")
-def get_user(user_id: str, db = Depends(get_db)):
+def get_user(user_id: str, db: Session = Depends(get_db)):
     rows = execute_query(
         db,
         query="""
@@ -23,3 +24,20 @@ def get_user(user_id: str, db = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
     
     return user
+
+@router.get("/{user_id}/promotion-history")
+def get_user_promotion_history(user_id, db: Session = Depends(get_db)):
+    rows = execute_query(
+        db,
+        query="""
+            SELECT * 
+            FROM promotion_impressions pi
+            WHERE pi.user_id = :user_id
+        """,
+        params={"user_id": user_id}
+    )
+
+    if not rows:
+        return {"message": f"User {user_id} does not have a promotion history."}
+    else:
+        return rows
