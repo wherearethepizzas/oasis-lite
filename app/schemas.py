@@ -1,12 +1,123 @@
+from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel
 
 
 PromotionEventType = Literal["click", "stream", "skip", "save"]
-CampaignMetricType = Literal["clicks", "streams", "saves", "skips", "click_through_rate", "stream_rate", "save_rate", "skip_rate"]
+CampaignMetricType = Literal[
+    "impressions",
+    "clicks",
+    "streams",
+    "saves",
+    "skips",
+    "click_through_rate",
+    "stream_rate",
+    "save_rate",
+    "skip_rate",
+]
+
+
+class MessageResponse(BaseModel):
+    message: str
+
+
+class RootResponse(BaseModel):
+    message: str
+
+
+class HealthResponse(BaseModel):
+    status: str
+
+
+class DatabaseHealthResponse(BaseModel):
+    status: str
+    database: str
+
+
+class TrackResponse(BaseModel):
+    track_name: str
+    genre: str | None = None
+    release_year: int | None = None
+    artist_name: str
+
+
+class UserResponse(BaseModel):
+    user_id: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ActiveCampaignResponse(BaseModel):
+    campaign_id: int
+    track_id: str
+    artist_id: int
+    objective: str
+    bid_weight: Decimal
+    daily_budget: Decimal
+    remaining_budget: Decimal
+    target_genre: str | None = None
+    max_impressions_per_user_per_day: int
+
+
+class CampaignMetricsResponse(BaseModel):
+    campaign_id: int
+    impressions: int
+    clicks: int
+    streams: int
+    saves: int
+    skips: int
+    click_through_rate: float
+    stream_rate: float
+    save_rate: float
+    skip_rate: float
+
+
+class PromotionImpressionResponse(BaseModel):
+    impression_id: int
+    campaign_id: int
+    user_id: str
+    track_id: str
+    rank_position: int
+    relevance_score: Decimal | None = None
+    campaign_score: Decimal | None = None
+    diversity_bonus: Decimal | None = None
+    fatigue_penalty: Decimal | None = None
+    final_score: Decimal | None = None
+    served_at: datetime
+
+
+class PromotedTrackRecommendationResponse(BaseModel):
+    rank_position: int
+    track_id: str
+    track_name: str
+    artist_id: int
+    artist_name: str
+    genre: str | None = None
+    campaign_id: int
+    objective: str
+    relevance_score: float
+    campaign_score: float
+    diversity_bonus: float
+    fatigue_penalty: float
+    final_score: float
+
+
+class PromotedRecommendationsResponse(BaseModel):
+    user_id: str
+    limit: int
+    count: int
+    recommendations: list[PromotedTrackRecommendationResponse]
 
 
 class PromotionEventCreate(BaseModel):
     impression_id: int
     event_type: PromotionEventType
+
+
+class PromotionEventResponse(BaseModel):
+    event_id: int
+    impression_id: int
+    event_type: PromotionEventType
+    event_timestamp: datetime

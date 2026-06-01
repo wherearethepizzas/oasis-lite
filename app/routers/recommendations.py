@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.schemas import PromotedRecommendationsResponse
 from app.services.recommendation_service import (
     get_active_campaigns_audio_features,
     get_user_taste_by_id,
@@ -13,7 +14,7 @@ from app.services.scoring_service import generate_promoted_tracks, get_user_play
 router = APIRouter()
 
 
-@router.get("/promoted/{user_id}")
+@router.get("/promoted/{user_id}", response_model=PromotedRecommendationsResponse)
 def get_promoted_recommendations(
     user_id: str,
     limit: int = Query(default=10, ge=1, le=50),

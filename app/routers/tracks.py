@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.schemas import TrackResponse
 from app.services.utils import execute_query
 
 router=APIRouter()
 
-@router.get("/{track_id}")
+@router.get("/{track_id}", response_model=TrackResponse)
 def get_track(track_id: str, db: Session = Depends(get_db)):
     rows = execute_query(
         db,
@@ -29,4 +30,4 @@ def get_track(track_id: str, db: Session = Depends(get_db)):
     if track is None:
         raise HTTPException(status_code=404, detail="Track not found")
     
-    return track
+    return dict(track)

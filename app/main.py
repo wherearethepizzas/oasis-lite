@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from app.routers import campaigns, events, health, tracks, users, recommendations
+from app.schemas import RootResponse
 
 app = FastAPI(title="Oasis Lite API")
 
@@ -11,6 +12,6 @@ app.include_router(campaigns.router, prefix="/campaigns", tags=["campaigns"])
 app.include_router(recommendations.router, prefix="/recommendations", tags=["recommendations"])
 app.include_router(events.router, tags=["events"])
 
-@app.get("/")
+@app.get("/", response_model=RootResponse)
 def root():
     return {"message": "Welcome to the Oasis Lite API"}

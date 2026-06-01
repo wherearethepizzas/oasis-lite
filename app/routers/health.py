@@ -4,14 +4,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import get_db
+from app.schemas import DatabaseHealthResponse, HealthResponse
 
 router = APIRouter()
 
-@router.get("/health")
+@router.get("/health", response_model=HealthResponse)
 def check_health():
     return {"status": "ok"}
 
-@router.get("/health/db")
+@router.get("/health/db", response_model=DatabaseHealthResponse)
 def check_db(db:Session = Depends(get_db)):
     try:
         db.execute(text("SELECT 1")).scalar_one()

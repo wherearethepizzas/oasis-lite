@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.schemas import PromotionEventCreate
+from app.schemas import PromotionEventCreate, PromotionEventResponse
 from app.services.event_service import get_impression_by_id, insert_promotion_event
 
 router = APIRouter()
 
-@router.post("/promotion-events")
+@router.post("/promotion-events", response_model=PromotionEventResponse)
 def log_event(event: PromotionEventCreate, db: Session = Depends(get_db)):
     if get_impression_by_id(db, event.impression_id) is None:
         raise HTTPException(status_code=404, detail="Promotion impression not found")
