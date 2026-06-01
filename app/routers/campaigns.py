@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.services.campaign_service import get_campaign_by_id, get_campaign_metrics
 from app.services.utils import execute_query
 
 router = APIRouter()
@@ -31,3 +32,10 @@ def get_active_campaigns(db: Session = Depends(get_db)):
         return {"message": "There are no active campaigns"}
     else:
         return campaigns
+
+
+@router.get("/{campaign_id}/metrics")
+def get_campaign_metrics_endpoint(campaign_id: int, db: Session = Depends(get_db)):
+    if get_campaign_by_id(db, campaign_id) is None:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    return get_campaign_metrics(db, campaign_id)
