@@ -37,14 +37,6 @@ The migration creates normalized tables for:
 - promotion campaigns
 - promotion impressions and events
 
-For existing databases that already have `promotion_campaigns` but do not have
-the idempotency key used by the campaign seeder, add:
-
-```sql
-ALTER TABLE promotion_campaigns
-  ADD UNIQUE KEY uq_campaign_track_artist_objective_dates
-  (track_id, artist_id, objective, start_date, end_date);
-```
 
 ## 3. Install Python dependencies in the conda environment
 

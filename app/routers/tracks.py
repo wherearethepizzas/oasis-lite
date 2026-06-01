@@ -1,17 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Track
+from app.services.utils import execute_query
 
 router=APIRouter()
 
 @router.get("/{track_id}")
 def get_track(track_id: str, db: Session = Depends(get_db)):
-    result = db.execute(
-        text(
-            """
+    rows = execute_query(
+        db,
+        query="""
             SELECT 
                 t.track_name, 
                 t.genre, 
@@ -21,11 +20,12 @@ def get_track(track_id: str, db: Session = Depends(get_db)):
             JOIN track_artists ta ON ta.track_id = t.track_id
             JOIN artists a ON a.artist_id = ta.artist_id
             WHERE t.track_id = :track_id
-            """
-        ), {"track_id":track_id})
-    
-    track=result.mappings().one_or_none()
-    
+            """,
+        params={"track_id":track_id}
+    )
+   
+    track = rows[0] if rows else None
+
     if track is None:
         raise HTTPException(status_code=404, detail="Track not found")
     

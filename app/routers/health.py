@@ -14,7 +14,7 @@ def check_health():
 @router.get("/health/db")
 def check_db(db:Session = Depends(get_db)):
     try:
-        result = db.execute(text("SELECT 1")).scalar_one()
+        db.execute(text("SELECT 1")).scalar_one()
     except SQLAlchemyError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
