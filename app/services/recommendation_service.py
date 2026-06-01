@@ -90,6 +90,63 @@ def get_active_campaigns_audio_features(db: Session, user_id: str):
     return [dict(row) for row in rows]
 
 
+def _get_relevant_track_ids(db: Session, user_id: str, threshold: int) -> set[str]:
+    rows = execute_query(
+        db,
+        query="""
+            SELECT track_id
+            FROM user_track_plays
+            WHERE user_id = :user_id
+              AND play_count >= :threshold
+        """,
+        params={"user_id": user_id, "threshold": threshold},
+    )
+    return {row["track_id"] for row in rows}
+
+
+def _get_relevant_genres(db: Session, user_id: str, threshold: int) -> set[str]:
+    rows = execute_query(
+        db,
+        query="""
+            SELECT t.genre
+            FROM user_track_plays utp
+            JOIN tracks t ON t.track_id = utp.track_id
+            WHERE utp.user_id = :user_id
+              AND t.genre IS NOT NULL
+            GROUP BY t.genre
+            HAVING SUM(utp.play_count) >= :threshold
+        """,
+        params={"user_id": user_id, "threshold": threshold},
+    )
+    return {row["genre"] for row in rows}
+
+
+def _get_relevant_artist_ids(db: Session, user_id: str, threshold: int) -> set[int]:
+    rows = execute_query(
+        db,
+        query="""
+            SELECT ta.artist_id
+            FROM user_track_plays utp
+            JOIN track_artists ta ON ta.track_id = utp.track_id
+            WHERE utp.user_id = :user_id
+            GROUP BY ta.artist_id
+            HAVING SUM(utp.play_count) >= :threshold
+        """,
+        params={"user_id": user_id, "threshold": threshold},
+    )
+    return {int(row["artist_id"]) for row in rows}
+
+
+def get_relevant_items(db: Session, user_id: str, relevance_mode: str, threshold: int) -> set:
+    if relevance_mode == "track":
+        return _get_relevant_track_ids(db, user_id, threshold)
+    if relevance_mode == "genre":
+        return _get_relevant_genres(db, user_id, threshold)
+    if relevance_mode == "artist":
+        return _get_relevant_artist_ids(db, user_id, threshold)
+    raise ValueError(f"Unsupported relevance_mode: {relevance_mode}")
+
+
 def insert_promotion_impressions(db: Session, user_id: str, recommendations: list[dict[str, Any]]) -> int:
     if not recommendations:
         return 0

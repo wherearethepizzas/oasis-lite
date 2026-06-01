@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 
 PromotionEventType = Literal["click", "stream", "skip", "save"]
+RecommendationRelevanceMode = Literal["track", "genre", "artist"]
 CampaignMetricType = Literal[
     "impressions",
     "clicks",
@@ -109,6 +110,20 @@ class PromotedRecommendationsResponse(BaseModel):
     limit: int
     count: int
     recommendations: list[PromotedTrackRecommendationResponse]
+
+
+class RecommendationEvaluationMetricsResponse(BaseModel):
+    user_id: str
+    k: int
+    relevance_mode: RecommendationRelevanceMode
+    threshold: int
+    recommended_count: int
+    relevant_items_count: int
+    relevant_recommended_count: int
+    precision_at_k: float
+    recall_at_k: float
+    ndcg_at_k: float
+    map_at_k: float
 
 
 class PromotionEventCreate(BaseModel):

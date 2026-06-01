@@ -1,4 +1,5 @@
 from decimal import Decimal
+from math import log2
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -182,3 +183,51 @@ def generate_promoted_tracks(
     for index, row in enumerate(ranked, start=1):
         row["rank_position"] = index
     return ranked
+
+
+def mark_relevance(
+    recommendations: list[dict[str, Any]],
+    relevant_items: set,
+    relevance_mode: str,
+) -> list[int]:
+    flags: list[int] = []
+    for recommendation in recommendations:
+        if relevance_mode == "track":
+            item = recommendation.get("track_id")
+        elif relevance_mode == "genre":
+            item = recommendation.get("genre")
+        elif relevance_mode == "artist":
+            item = recommendation.get("artist_id")
+        else:
+            raise ValueError(f"Unsupported relevance_mode: {relevance_mode}")
+        flags.append(1 if item in relevant_items else 0)
+    return flags
+
+
+def calculate_ranking_metrics(relevance_flags: list[int], total_relevant: int, k: int) -> dict[str, float | int]:
+    flags_at_k = relevance_flags[:k]
+    relevant_recommended_count = sum(flags_at_k)
+    precision_at_k = relevant_recommended_count / k
+    recall_at_k = relevant_recommended_count / total_relevant if total_relevant else 0.0
+
+    dcg = sum(flag / log2(rank + 1) for rank, flag in enumerate(flags_at_k, start=1))
+    ideal_relevant_count = min(total_relevant, k)
+    idcg = sum(1 / log2(rank + 1) for rank in range(1, ideal_relevant_count + 1))
+    ndcg_at_k = dcg / idcg if idcg else 0.0
+
+    precision_sum = 0.0
+    hit_count = 0
+    for rank, flag in enumerate(flags_at_k, start=1):
+        if flag:
+            hit_count += 1
+            precision_sum += hit_count / rank
+    map_denominator = min(total_relevant, k)
+    map_at_k = precision_sum / map_denominator if map_denominator else 0.0
+
+    return {
+        "relevant_recommended_count": relevant_recommended_count,
+        "precision_at_k": round(precision_at_k, 3),
+        "recall_at_k": round(recall_at_k, 3),
+        "ndcg_at_k": round(ndcg_at_k, 3),
+        "map_at_k": round(map_at_k, 3),
+    }
