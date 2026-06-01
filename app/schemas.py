@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 
 PromotionEventType = Literal["click", "stream", "skip", "save"]
+CampaignMetricType = Literal["clicks", "streams", "saves", "skips", "click_through_rate", "stream_rate", "save_rate", "skip_rate"]
 
 
 class PromotionEventCreate(BaseModel):
