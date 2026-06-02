@@ -4,6 +4,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.services.utils import execute_query
+from app.services.scoring_service import mark_relevance, calculate_ranking_metrics
+from app.schemas import RecommendationRelevanceMode
 
 
 def get_user_taste_by_id(db: Session, user_id: str):
@@ -195,3 +197,25 @@ def insert_promotion_impressions(db: Session, user_id: str, recommendations: lis
         rows,
     )
     return int(result.rowcount or 0)
+
+def build_recommendation_metrics(
+    *,
+    db: Session,
+    user_id: str,
+    recommendations: list[dict],
+    k: int,
+    relevance_mode: RecommendationRelevanceMode,
+    threshold: int,
+):
+    relevant_items = get_relevant_items(db, user_id, relevance_mode, threshold)
+    relevance_flags = mark_relevance(recommendations, relevant_items, relevance_mode)
+    metrics = calculate_ranking_metrics(relevance_flags, total_relevant=len(relevant_items), k=k)
+    return {
+        "user_id": user_id,
+        "k": k,
+        "relevance_mode": relevance_mode,
+        "threshold": threshold,
+        "recommended_count": len(recommendations),
+        "relevant_items_count": len(relevant_items),
+        **metrics,
+    }

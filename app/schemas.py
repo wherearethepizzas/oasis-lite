@@ -105,13 +105,6 @@ class PromotedTrackRecommendationResponse(BaseModel):
     final_score: float
 
 
-class PromotedRecommendationsResponse(BaseModel):
-    user_id: str
-    limit: int
-    count: int
-    recommendations: list[PromotedTrackRecommendationResponse]
-
-
 class RecommendationEvaluationMetricsResponse(BaseModel):
     user_id: str
     k: int
@@ -124,6 +117,14 @@ class RecommendationEvaluationMetricsResponse(BaseModel):
     recall_at_k: float
     ndcg_at_k: float
     map_at_k: float
+
+
+class PromotedRecommendationsResponse(BaseModel):
+    user_id: str
+    limit: int
+    count: int
+    recommendations: list[PromotedTrackRecommendationResponse]
+    metrics: RecommendationEvaluationMetricsResponse
 
 
 class PromotionEventCreate(BaseModel):
