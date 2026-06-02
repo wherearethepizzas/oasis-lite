@@ -11,6 +11,7 @@ from app.schemas import (
     RecommendationRelevanceMode
 )
 from app.services.recommendation_service import (
+    attach_impression_ids,
     get_active_campaigns_audio_features,
     get_user_taste_by_id,
     insert_promotion_impressions,
@@ -76,7 +77,8 @@ def get_promoted_recommendations(
         )
 
         try:
-            insert_promotion_impressions(db, user_id, recommendations)
+            impression_ids = insert_promotion_impressions(db, user_id, recommendations)
+            recommendations = attach_impression_ids(recommendations, impression_ids)
             db.commit()
         except Exception as exc:
             db.rollback()

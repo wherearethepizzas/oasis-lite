@@ -43,13 +43,14 @@ def test_get_promoted_recommendations(client, dummy_db, monkeypatch):
         lambda user_id, db: {"top_genre_names": {"Rock"}, "top_artist_ids": {1}},
     )
     monkeypatch.setattr(recommendation_service, "get_relevant_items", lambda db, user_id, relevance_mode, threshold: {"track-1"})
-    monkeypatch.setattr(recommendations, "insert_promotion_impressions", lambda db, user_id, rows: len(rows))
+    monkeypatch.setattr(recommendations, "insert_promotion_impressions", lambda db, user_id, rows: [501])
 
     response = client.get("/recommendations/promoted/user-1?limit=1&relevance_mode=track&threshold=1")
 
     assert response.status_code == 200
     assert response.json()["count"] == 1
     assert response.json()["recommendations"][0]["rank_position"] == 1
+    assert response.json()["recommendations"][0]["impression_id"] == 501
     assert response.json()["metrics"]["precision_at_k"] == 1.0
     assert response.json()["metrics"]["recall_at_k"] == 1.0
     assert dummy_db.committed is True
@@ -145,12 +146,17 @@ def _patch_metrics_dependencies(monkeypatch, recommendations, ranked_rows, relev
         lambda user_taste_profile, active_campaigns_audio_features, user_play_context, limit: ranked_rows[:limit],
     )
     monkeypatch.setattr(recommendation_service, "get_relevant_items", lambda db, user_id, relevance_mode, threshold: relevant_items)
-    monkeypatch.setattr(recommendations, "insert_promotion_impressions", lambda db, user_id, rows: len(rows))
+    monkeypatch.setattr(
+        recommendations,
+        "insert_promotion_impressions",
+        lambda db, user_id, rows: [1000 + index for index, _ in enumerate(rows)],
+    )
 
 
 def _ranked_recommendation(track_id: str, genre: str, artist_id: int, rank_position: int = 1):
     return {
         "rank_position": rank_position,
+        "impression_id": 900 + rank_position,
         "track_id": track_id,
         "track_name": f"Track {track_id}",
         "artist_id": artist_id,
@@ -211,6 +217,36 @@ def test_promoted_recommendations_include_genre_metrics(client, monkeypatch):
     assert response.json()["metrics"]["threshold"] == 5
     assert response.json()["metrics"]["relevant_recommended_count"] == 1
     assert response.json()["metrics"]["precision_at_k"] == 0.5
+
+
+def test_promoted_recommendations_genre_metrics_do_not_double_count_duplicate_genres(client, monkeypatch):
+    from app.routers import recommendations
+
+    ranked_rows = [
+        _ranked_recommendation("track-1", "Rock", 1, 1),
+        _ranked_recommendation("track-2", "Rock", 2, 2),
+        _ranked_recommendation("track-3", "Rock", 3, 3),
+        _ranked_recommendation("track-4", "Pop", 4, 4),
+        _ranked_recommendation("track-5", "Pop", 5, 5),
+    ]
+    _patch_metrics_dependencies(monkeypatch, recommendations, ranked_rows, {"Rock", "Pop"})
+
+    response = client.get("/recommendations/promoted/user-1?limit=5&relevance_mode=genre&threshold=1")
+
+    assert response.status_code == 200
+    assert response.json()["metrics"] == {
+        "user_id": "user-1",
+        "k": 5,
+        "relevance_mode": "genre",
+        "threshold": 1,
+        "recommended_count": 5,
+        "relevant_items_count": 2,
+        "relevant_recommended_count": 2,
+        "precision_at_k": 0.4,
+        "recall_at_k": 1.0,
+        "ndcg_at_k": 0.877,
+        "map_at_k": 0.75,
+    }
 
 
 def test_promoted_recommendations_include_artist_metrics(client, monkeypatch):

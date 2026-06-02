@@ -23,6 +23,39 @@ def test_get_user(client, monkeypatch):
     assert response.json()["user_id"] == "user-1"
 
 
+def test_get_recommendation_ready_users(client, monkeypatch):
+    from app.routers import users
+
+    captured = {}
+
+    def fake_execute_query(db, query, params=None):
+        captured["params"] = params
+        return [{"user_id": "user-1"}, {"user_id": "user-2"}]
+
+    monkeypatch.setattr(users, "execute_query", fake_execute_query)
+
+    response = client.get("/users/recommendation-ready?limit=2")
+
+    assert response.status_code == 200
+    assert response.json() == [{"user_id": "user-1"}, {"user_id": "user-2"}]
+    assert captured["params"] == {"limit": 2}
+
+
+def test_get_recommendation_ready_users_empty(client, monkeypatch):
+    from app.routers import users
+
+    monkeypatch.setattr(users, "execute_query", lambda db, query, params=None: [])
+
+    response = client.get("/users/recommendation-ready")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_get_recommendation_ready_users_rejects_invalid_limit(client):
+    assert client.get("/users/recommendation-ready?limit=0").status_code == 422
+
+
 def test_get_user_not_found(client, monkeypatch):
     from app.routers import users
 

@@ -84,20 +84,23 @@
                 <p class="eyebrow">Campaigns</p>
                 <h2>Leaderboard</h2>
               </div>
-              <label class="field compact">
-                <span>Sort</span>
-                <select id="leaderboard-metric">
-                  <option value="stream_rate">Stream rate</option>
-                  <option value="click_through_rate">CTR</option>
-                  <option value="save_rate">Save rate</option>
-                  <option value="skip_rate">Skip rate</option>
-                  <option value="impressions">Impressions</option>
-                  <option value="clicks">Clicks</option>
-                  <option value="streams">Streams</option>
-                  <option value="saves">Saves</option>
-                  <option value="skips">Skips</option>
-                </select>
-              </label>
+              <div class="leaderboard-controls">
+                <label class="field compact">
+                  <span>Sort</span>
+                  <select id="leaderboard-metric">
+                    <option value="stream_rate">Stream rate</option>
+                    <option value="click_through_rate">CTR</option>
+                    <option value="save_rate">Save rate</option>
+                    <option value="skip_rate">Skip rate</option>
+                    <option value="impressions">Impressions</option>
+                    <option value="clicks">Clicks</option>
+                    <option value="streams">Streams</option>
+                    <option value="saves">Saves</option>
+                    <option value="skips">Skips</option>
+                  </select>
+                </label>
+                <button class="secondary-button" id="leaderboard-toggle" type="button" aria-expanded="false">Show all</button>
+              </div>
             </div>
             <div class="table-wrap">
               <table>
@@ -139,6 +142,65 @@
           </section>
         </div>
 
+        <section class="panel simulator-panel" aria-label="Traffic simulator">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Simulation</p>
+              <h2>Traffic Simulator</h2>
+            </div>
+            <form class="simulator-form" id="simulator-form">
+              <label class="field traffic-field">
+                <span>Traffic</span>
+                <select id="simulator-traffic">
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </label>
+              <label class="field performance-field">
+                <span>Performance</span>
+                <select id="simulator-performance">
+                  <option value="good">Good</option>
+                  <option value="mid">Mid</option>
+                  <option value="bad">Bad</option>
+                </select>
+              </label>
+              <label class="field limit-field">
+                <span>Limit</span>
+                <input id="simulator-limit" type="number" min="1" max="50" value="10">
+              </label>
+              <label class="field mode-field">
+                <span>Mode</span>
+                <select id="simulator-mode">
+                  <option value="track">Track</option>
+                  <option value="genre">Genre</option>
+                  <option value="artist">Artist</option>
+                </select>
+              </label>
+              <label class="field threshold-field">
+                <span>Threshold</span>
+                <input id="simulator-threshold" type="number" min="1" value="1">
+              </label>
+              <label class="field seed-field">
+                <span>Seed</span>
+                <input id="simulator-seed" type="number" value="42">
+              </label>
+              <button type="submit" id="simulator-run">Run</button>
+            </form>
+          </div>
+          <div class="simulator-layout">
+            <div class="progress-wrap">
+              <div class="progress-track" aria-hidden="true">
+                <div class="progress-bar" id="simulator-progress-bar"></div>
+              </div>
+              <div class="progress-copy" id="simulator-progress-copy">Ready</div>
+            </div>
+            <div class="simulator-summary" id="simulator-summary">
+              <div class="empty-state">Run simulated traffic to create impressions and promotion events.</div>
+            </div>
+          </div>
+        </section>
+
         <section class="panel recommendations-panel" aria-label="Promoted recommendation evaluation">
           <div class="section-heading">
             <div>
@@ -146,15 +208,15 @@
               <h2>Promoted Ranking</h2>
             </div>
             <form class="recommendation-form" id="recommendation-form">
-              <label class="field">
+              <label class="field user-field">
                 <span>User ID</span>
                 <input id="recommendation-user-id" type="text" placeholder="user_123" required>
               </label>
-              <label class="field small">
+              <label class="field limit-field">
                 <span>Limit</span>
                 <input id="recommendation-limit" type="number" min="1" max="50" value="10">
               </label>
-              <label class="field">
+              <label class="field mode-field">
                 <span>Mode</span>
                 <select id="recommendation-mode">
                   <option value="track">Track</option>
@@ -162,7 +224,7 @@
                   <option value="artist">Artist</option>
                 </select>
               </label>
-              <label class="field small">
+              <label class="field threshold-field">
                 <span>Threshold</span>
                 <input id="recommendation-threshold" type="number" min="1" value="1">
               </label>

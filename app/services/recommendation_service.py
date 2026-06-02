@@ -149,54 +149,65 @@ def get_relevant_items(db: Session, user_id: str, relevance_mode: str, threshold
     raise ValueError(f"Unsupported relevance_mode: {relevance_mode}")
 
 
-def insert_promotion_impressions(db: Session, user_id: str, recommendations: list[dict[str, Any]]) -> int:
+def insert_promotion_impressions(db: Session, user_id: str, recommendations: list[dict[str, Any]]) -> list[int]:
     if not recommendations:
-        return 0
+        return []
 
-    rows = [
-        {
-            "campaign_id": recommendation["campaign_id"],
-            "user_id": user_id,
-            "track_id": recommendation["track_id"],
-            "rank_position": recommendation["rank_position"],
-            "relevance_score": recommendation["relevance_score"],
-            "campaign_score": recommendation["campaign_score"],
-            "diversity_bonus": recommendation["diversity_bonus"],
-            "fatigue_penalty": recommendation["fatigue_penalty"],
-            "final_score": recommendation["final_score"],
-        }
-        for recommendation in recommendations
-    ]
-    result = db.execute(
-        text(
-            """
-            INSERT INTO promotion_impressions (
-                campaign_id,
-                user_id,
-                track_id,
-                rank_position,
-                relevance_score,
-                campaign_score,
-                diversity_bonus,
-                fatigue_penalty,
-                final_score
-            )
-            VALUES (
-                :campaign_id,
-                :user_id,
-                :track_id,
-                :rank_position,
-                :relevance_score,
-                :campaign_score,
-                :diversity_bonus,
-                :fatigue_penalty,
-                :final_score
-            )
-            """
-        ),
-        rows,
+    statement = text(
+        """
+        INSERT INTO promotion_impressions (
+            campaign_id,
+            user_id,
+            track_id,
+            rank_position,
+            relevance_score,
+            campaign_score,
+            diversity_bonus,
+            fatigue_penalty,
+            final_score
+        )
+        VALUES (
+            :campaign_id,
+            :user_id,
+            :track_id,
+            :rank_position,
+            :relevance_score,
+            :campaign_score,
+            :diversity_bonus,
+            :fatigue_penalty,
+            :final_score
+        )
+        """
     )
-    return int(result.rowcount or 0)
+    impression_ids = []
+    for recommendation in recommendations:
+        result = db.execute(
+            statement,
+            {
+                "campaign_id": recommendation["campaign_id"],
+                "user_id": user_id,
+                "track_id": recommendation["track_id"],
+                "rank_position": recommendation["rank_position"],
+                "relevance_score": recommendation["relevance_score"],
+                "campaign_score": recommendation["campaign_score"],
+                "diversity_bonus": recommendation["diversity_bonus"],
+                "fatigue_penalty": recommendation["fatigue_penalty"],
+                "final_score": recommendation["final_score"],
+            },
+        )
+        impression_id = getattr(result, "lastrowid", None)
+        if impression_id is None:
+            raise RuntimeError("Promotion impression insert did not return an inserted row ID.")
+        impression_ids.append(int(impression_id))
+    return impression_ids
+
+
+def attach_impression_ids(recommendations: list[dict[str, Any]], impression_ids: list[int]) -> list[dict[str, Any]]:
+    if len(recommendations) != len(impression_ids):
+        raise RuntimeError("Recommendation count does not match inserted promotion impression count.")
+    for recommendation, impression_id in zip(recommendations, impression_ids, strict=True):
+        recommendation["impression_id"] = impression_id
+    return recommendations
 
 def build_recommendation_metrics(
     *,

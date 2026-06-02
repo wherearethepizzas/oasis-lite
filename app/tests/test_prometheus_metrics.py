@@ -30,7 +30,7 @@ def test_prometheus_metrics_are_exported(client, monkeypatch):
         ],
     )
     monkeypatch.setattr(recommendation_service, "get_relevant_items", lambda db, user_id, relevance_mode, threshold: {"track-1"})
-    monkeypatch.setattr(recommendations, "insert_promotion_impressions", lambda db, user_id, rows: len(rows))
+    monkeypatch.setattr(recommendations, "insert_promotion_impressions", lambda db, user_id, rows: [1])
     monkeypatch.setattr(events, "get_impression_by_id", lambda db, impression_id: {"impression_id": impression_id})
     monkeypatch.setattr(
         events,

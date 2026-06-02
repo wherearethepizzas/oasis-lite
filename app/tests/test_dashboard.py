@@ -3,6 +3,8 @@ def test_dashboard_serves_static_shell(client):
 
     assert response.status_code == 200
     assert "Oasis Lite Metrics" in response.text
+    assert "Traffic Simulator" in response.text
+    assert "leaderboard-toggle" in response.text
     assert "/dashboard/styles.css" in response.text
     assert "/dashboard/app.js" in response.text
 
@@ -15,3 +17,5 @@ def test_dashboard_assets_are_available(client):
     assert js_response.status_code == 200
     assert "kpi-grid" in css_response.text
     assert "refreshDashboard" in js_response.text
+    assert "runTrafficSimulation" in js_response.text
+    assert "leaderboardExpanded" in js_response.text

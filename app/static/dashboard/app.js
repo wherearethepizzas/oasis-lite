@@ -1,5 +1,6 @@
 const state = {
   leaderboard: [],
+  leaderboardExpanded: false,
   selectedCampaignId: null,
 };
 
@@ -15,10 +16,25 @@ const metricLabels = {
   skip_rate: "Skip Rate",
 };
 
+const trafficPresets = {
+  low: 5,
+  medium: 25,
+  high: 100,
+};
+
+const performanceProfiles = {
+  good: { skip: 0.10, click: 0.35, stream: 0.18, save: 0.08 },
+  mid: { skip: 0.28, click: 0.16, stream: 0.08, save: 0.03 },
+  bad: { skip: 0.65, click: 0.05, stream: 0.02, save: 0.01 },
+};
+
+const simulatorConcurrency = 5;
+
 const elements = {
   apiStatus: document.querySelector("#api-status"),
   refreshDashboard: document.querySelector("#refresh-dashboard"),
   leaderboardMetric: document.querySelector("#leaderboard-metric"),
+  leaderboardToggle: document.querySelector("#leaderboard-toggle"),
   leaderboardBody: document.querySelector("#leaderboard-body"),
   campaignForm: document.querySelector("#campaign-form"),
   campaignId: document.querySelector("#campaign-id"),
@@ -30,6 +46,17 @@ const elements = {
   recommendationThreshold: document.querySelector("#recommendation-threshold"),
   recommendationMetrics: document.querySelector("#recommendation-metrics"),
   recommendationBody: document.querySelector("#recommendation-body"),
+  simulatorForm: document.querySelector("#simulator-form"),
+  simulatorTraffic: document.querySelector("#simulator-traffic"),
+  simulatorPerformance: document.querySelector("#simulator-performance"),
+  simulatorLimit: document.querySelector("#simulator-limit"),
+  simulatorMode: document.querySelector("#simulator-mode"),
+  simulatorThreshold: document.querySelector("#simulator-threshold"),
+  simulatorSeed: document.querySelector("#simulator-seed"),
+  simulatorRun: document.querySelector("#simulator-run"),
+  simulatorProgressBar: document.querySelector("#simulator-progress-bar"),
+  simulatorProgressCopy: document.querySelector("#simulator-progress-copy"),
+  simulatorSummary: document.querySelector("#simulator-summary"),
 };
 
 function setText(id, value) {
@@ -67,8 +94,8 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-async function fetchJson(path) {
-  const response = await fetch(path);
+async function fetchJson(path, options = {}) {
+  const response = await fetch(path, options);
   if (!response.ok) {
     let message = `${response.status} ${response.statusText}`;
     try {
@@ -82,6 +109,14 @@ async function fetchJson(path) {
     throw new Error(message);
   }
   return response.json();
+}
+
+async function postJson(path, payload) {
+  return fetchJson(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }
 
 async function fetchText(path) {
@@ -119,10 +154,16 @@ function updateKpis(campaigns, activeCampaignCount) {
 function renderLeaderboard(campaigns) {
   if (!campaigns.length) {
     elements.leaderboardBody.innerHTML = '<tr><td colspan="7" class="empty-cell">No campaign metrics found</td></tr>';
+    elements.leaderboardToggle.hidden = true;
     return;
   }
 
-  elements.leaderboardBody.innerHTML = campaigns
+  const visibleCampaigns = state.leaderboardExpanded ? campaigns : campaigns.slice(0, 5);
+  elements.leaderboardToggle.hidden = campaigns.length <= 5;
+  elements.leaderboardToggle.textContent = state.leaderboardExpanded ? "Show top 5" : `Show all ${campaigns.length}`;
+  elements.leaderboardToggle.setAttribute("aria-expanded", String(state.leaderboardExpanded));
+
+  elements.leaderboardBody.innerHTML = visibleCampaigns
     .map((campaign) => {
       const selected = campaign.campaign_id === state.selectedCampaignId ? "selected" : "";
       return `
@@ -276,6 +317,206 @@ function renderRecommendations(recommendations) {
     .join("");
 }
 
+function createSeededRandom(seed) {
+  let value = Number(seed);
+  if (!Number.isFinite(value)) {
+    value = 42;
+  }
+  value = Math.trunc(value) || 42;
+  return function random() {
+    value |= 0;
+    value = (value + 0x6d2b79f5) | 0;
+    let mixed = Math.imul(value ^ (value >>> 15), 1 | value);
+    mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed);
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function clampInteger(value, fallback, min, max) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.min(Math.max(parsed, min), max);
+}
+
+function createSimulationSummary(requestsAttempted) {
+  return {
+    requestsAttempted,
+    requestsCompleted: 0,
+    impressions: 0,
+    clicks: 0,
+    streams: 0,
+    saves: 0,
+    skips: 0,
+    failures: 0,
+    campaigns: new Set(),
+    startedAt: performance.now(),
+    elapsedSeconds: 0,
+  };
+}
+
+function setSimulationProgress(completed, total, message) {
+  const percent = total ? Math.round((completed / total) * 100) : 0;
+  elements.simulatorProgressBar.style.width = `${percent}%`;
+  elements.simulatorProgressCopy.textContent = message;
+}
+
+function renderSimulationSummary(summary) {
+  const stats = [
+    ["Requests", `${formatInteger(summary.requestsCompleted)} / ${formatInteger(summary.requestsAttempted)}`],
+    ["Impressions", formatInteger(summary.impressions)],
+    ["Clicks", formatInteger(summary.clicks)],
+    ["Streams", formatInteger(summary.streams)],
+    ["Saves", formatInteger(summary.saves)],
+    ["Skips", formatInteger(summary.skips)],
+    ["Campaigns", formatInteger(summary.campaigns.size)],
+    ["Failures", formatInteger(summary.failures)],
+    ["Elapsed", `${formatDecimal(summary.elapsedSeconds, 1)}s`],
+  ];
+  elements.simulatorSummary.innerHTML = stats
+    .map(([label, value]) => `
+      <div class="sim-stat">
+        <span>${label}</span>
+        <strong>${value}</strong>
+      </div>
+    `)
+    .join("");
+}
+
+function renderSimulationError(message) {
+  elements.simulatorSummary.innerHTML = `<div class="error-state">${escapeHtml(message)}</div>`;
+}
+
+async function fetchRecommendationReadyUsers() {
+  const users = await fetchJson("/users/recommendation-ready?limit=500");
+  return Array.isArray(users) ? users.filter((user) => user.user_id) : [];
+}
+
+async function postSimulatedEvent(summary, impressionId, eventType) {
+  await postJson("/promotion-events", {
+    impression_id: impressionId,
+    event_type: eventType,
+  });
+  if (eventType === "click") {
+    summary.clicks += 1;
+  } else if (eventType === "stream") {
+    summary.streams += 1;
+  } else if (eventType === "save") {
+    summary.saves += 1;
+  } else if (eventType === "skip") {
+    summary.skips += 1;
+  }
+}
+
+async function simulateRecommendationRequest(job, config, summary) {
+  const params = new URLSearchParams({
+    limit: String(config.limit),
+    relevance_mode: config.relevanceMode,
+    threshold: String(config.threshold),
+  });
+  const payload = await fetchJson(`/recommendations/promoted/${encodeURIComponent(job.userId)}?${params.toString()}`);
+  const recommendations = payload.recommendations || [];
+  const random = createSeededRandom(job.seed);
+
+  for (const recommendation of recommendations) {
+    if (!recommendation.impression_id) {
+      summary.failures += 1;
+      continue;
+    }
+    summary.impressions += 1;
+    summary.campaigns.add(recommendation.campaign_id);
+
+    if (random() < config.profile.skip) {
+      await postSimulatedEvent(summary, recommendation.impression_id, "skip");
+      continue;
+    }
+    if (random() < config.profile.click) {
+      await postSimulatedEvent(summary, recommendation.impression_id, "click");
+    }
+    if (random() < config.profile.stream) {
+      await postSimulatedEvent(summary, recommendation.impression_id, "stream");
+    }
+    if (random() < config.profile.save) {
+      await postSimulatedEvent(summary, recommendation.impression_id, "save");
+    }
+  }
+}
+
+async function runTrafficSimulation() {
+  const traffic = elements.simulatorTraffic.value;
+  const performance = elements.simulatorPerformance.value;
+  const requestCount = trafficPresets[traffic] || trafficPresets.low;
+  const seed = clampInteger(elements.simulatorSeed.value, 42, -2147483648, 2147483647);
+  const config = {
+    limit: clampInteger(elements.simulatorLimit.value, 10, 1, 50),
+    relevanceMode: elements.simulatorMode.value,
+    threshold: clampInteger(elements.simulatorThreshold.value, 1, 1, 1000000),
+    profile: performanceProfiles[performance] || performanceProfiles.mid,
+  };
+  const summary = createSimulationSummary(requestCount);
+
+  elements.simulatorRun.disabled = true;
+  setStatus("Simulating");
+  setSimulationProgress(0, requestCount, `Preparing ${traffic} traffic simulation`);
+  renderSimulationSummary(summary);
+
+  try {
+    const users = await fetchRecommendationReadyUsers();
+    if (!users.length) {
+      throw new Error("No recommendation-ready users found");
+    }
+
+    const random = createSeededRandom(seed);
+    const jobs = Array.from({ length: requestCount }, (_, index) => {
+      const user = users[Math.floor(random() * users.length)];
+      return {
+        userId: user.user_id,
+        seed: seed + index * 9973 + 17,
+      };
+    });
+
+    let nextJobIndex = 0;
+    async function worker() {
+      while (nextJobIndex < jobs.length) {
+        const currentIndex = nextJobIndex;
+        nextJobIndex += 1;
+        try {
+          await simulateRecommendationRequest(jobs[currentIndex], config, summary);
+        } catch {
+          summary.failures += 1;
+        } finally {
+          summary.requestsCompleted += 1;
+          summary.elapsedSeconds = (performanceNow() - summary.startedAt) / 1000;
+          setSimulationProgress(
+            summary.requestsCompleted,
+            requestCount,
+            `${summary.requestsCompleted} of ${requestCount} recommendation requests complete`,
+          );
+          renderSimulationSummary(summary);
+        }
+      }
+    }
+
+    await Promise.all(Array.from({ length: Math.min(simulatorConcurrency, jobs.length) }, worker));
+    summary.elapsedSeconds = (performanceNow() - summary.startedAt) / 1000;
+    renderSimulationSummary(summary);
+    setSimulationProgress(requestCount, requestCount, "Simulation complete");
+    await refreshDashboard();
+    setStatus("Live", "ok");
+  } catch (error) {
+    setStatus("Error", "error");
+    renderSimulationError(error.message);
+    setSimulationProgress(summary.requestsCompleted, requestCount, "Simulation failed");
+  } finally {
+    elements.simulatorRun.disabled = false;
+  }
+}
+
+function performanceNow() {
+  return window.performance ? window.performance.now() : Date.now();
+}
+
 function renderRecommendationError(message) {
   elements.recommendationMetrics.innerHTML = `<div class="error-state">${escapeHtml(message)}</div>`;
   elements.recommendationBody.innerHTML = '<tr><td colspan="7" class="empty-cell">Recommendation request failed</td></tr>';
@@ -331,6 +572,10 @@ async function refreshDashboard() {
 
 elements.refreshDashboard.addEventListener("click", refreshDashboard);
 elements.leaderboardMetric.addEventListener("change", refreshDashboard);
+elements.leaderboardToggle.addEventListener("click", () => {
+  state.leaderboardExpanded = !state.leaderboardExpanded;
+  renderLeaderboard(state.leaderboard);
+});
 elements.leaderboardBody.addEventListener("click", (event) => {
   const row = event.target.closest("tr[data-campaign-id]");
   if (row) {
@@ -346,6 +591,10 @@ elements.campaignForm.addEventListener("submit", (event) => {
 elements.recommendationForm.addEventListener("submit", (event) => {
   event.preventDefault();
   runRecommendations();
+});
+elements.simulatorForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  runTrafficSimulation();
 });
 
 refreshDashboard();

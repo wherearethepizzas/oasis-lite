@@ -50,6 +50,10 @@ class UserResponse(BaseModel):
     updated_at: datetime
 
 
+class RecommendationReadyUserResponse(BaseModel):
+    user_id: str
+
+
 class ActiveCampaignResponse(BaseModel):
     campaign_id: int
     track_id: str
@@ -90,6 +94,7 @@ class PromotionImpressionResponse(BaseModel):
 
 
 class PromotedTrackRecommendationResponse(BaseModel):
+    impression_id: int
     rank_position: int
     track_id: str
     track_name: str

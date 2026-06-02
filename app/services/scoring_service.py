@@ -191,6 +191,7 @@ def mark_relevance(
     relevance_mode: str,
 ) -> list[int]:
     flags: list[int] = []
+    seen_relevant_items = set()
     for recommendation in recommendations:
         if relevance_mode == "track":
             item = recommendation.get("track_id")
@@ -200,7 +201,11 @@ def mark_relevance(
             item = recommendation.get("artist_id")
         else:
             raise ValueError(f"Unsupported relevance_mode: {relevance_mode}")
-        flags.append(1 if item in relevant_items else 0)
+        if item in relevant_items and item not in seen_relevant_items:
+            flags.append(1)
+            seen_relevant_items.add(item)
+        else:
+            flags.append(0)
     return flags
 
 
@@ -226,8 +231,8 @@ def calculate_ranking_metrics(relevance_flags: list[int], total_relevant: int, k
 
     return {
         "relevant_recommended_count": relevant_recommended_count,
-        "precision_at_k": round(precision_at_k, 3),
-        "recall_at_k": round(recall_at_k, 3),
-        "ndcg_at_k": round(ndcg_at_k, 3),
-        "map_at_k": round(map_at_k, 3),
+        "precision_at_k": round(_clamp(precision_at_k), 3),
+        "recall_at_k": round(_clamp(recall_at_k), 3),
+        "ndcg_at_k": round(_clamp(ndcg_at_k), 3),
+        "map_at_k": round(_clamp(map_at_k), 3),
     }
