@@ -1,5 +1,6 @@
 def test_get_promoted_recommendations(client, dummy_db, monkeypatch):
     from app.routers import recommendations
+    from app.services import recommendation_service
 
     monkeypatch.setattr(
         recommendations,
@@ -41,7 +42,7 @@ def test_get_promoted_recommendations(client, dummy_db, monkeypatch):
         "get_user_play_history_by_id",
         lambda user_id, db: {"top_genre_names": {"Rock"}, "top_artist_ids": {1}},
     )
-    monkeypatch.setattr(recommendations, "get_relevant_items", lambda db, user_id, relevance_mode, threshold: {"track-1"})
+    monkeypatch.setattr(recommendation_service, "get_relevant_items", lambda db, user_id, relevance_mode, threshold: {"track-1"})
     monkeypatch.setattr(recommendations, "insert_promotion_impressions", lambda db, user_id, rows: len(rows))
 
     response = client.get("/recommendations/promoted/user-1?limit=1&relevance_mode=track&threshold=1")
@@ -67,10 +68,11 @@ def test_get_promoted_recommendations_missing_taste_profile(client, monkeypatch)
 
 def test_get_promoted_recommendations_no_campaigns(client, monkeypatch):
     from app.routers import recommendations
+    from app.services import recommendation_service
 
     monkeypatch.setattr(recommendations, "get_user_taste_by_id", lambda db, user_id: {"user_id": user_id})
     monkeypatch.setattr(recommendations, "get_active_campaigns_audio_features", lambda db, user_id: [])
-    monkeypatch.setattr(recommendations, "get_relevant_items", lambda db, user_id, relevance_mode, threshold: set())
+    monkeypatch.setattr(recommendation_service, "get_relevant_items", lambda db, user_id, relevance_mode, threshold: set())
 
     response = client.get("/recommendations/promoted/user-1?limit=5")
 
@@ -98,6 +100,7 @@ def test_get_promoted_recommendations_no_campaigns(client, monkeypatch):
 
 def test_get_promoted_recommendations_rolls_back_when_logging_fails(client, dummy_db, monkeypatch):
     from app.routers import recommendations
+    from app.services import recommendation_service
 
     monkeypatch.setattr(recommendations, "get_user_taste_by_id", lambda db, user_id: {"user_id": user_id})
     monkeypatch.setattr(
@@ -117,7 +120,7 @@ def test_get_promoted_recommendations_rolls_back_when_logging_fails(client, dumm
         ],
     )
     monkeypatch.setattr(recommendations, "get_user_play_history_by_id", lambda user_id, db: {})
-    monkeypatch.setattr(recommendations, "get_relevant_items", lambda db, user_id, relevance_mode, threshold: set())
+    monkeypatch.setattr(recommendation_service, "get_relevant_items", lambda db, user_id, relevance_mode, threshold: set())
 
     def fail_insert(db, user_id, rows):
         raise RuntimeError("insert failed")
@@ -131,6 +134,8 @@ def test_get_promoted_recommendations_rolls_back_when_logging_fails(client, dumm
 
 
 def _patch_metrics_dependencies(monkeypatch, recommendations, ranked_rows, relevant_items):
+    from app.services import recommendation_service
+
     monkeypatch.setattr(recommendations, "get_user_taste_by_id", lambda db, user_id: {"user_id": user_id})
     monkeypatch.setattr(recommendations, "get_active_campaigns_audio_features", lambda db, user_id: [{"track_id": "raw"}])
     monkeypatch.setattr(recommendations, "get_user_play_history_by_id", lambda user_id, db: {})
@@ -139,11 +144,7 @@ def _patch_metrics_dependencies(monkeypatch, recommendations, ranked_rows, relev
         "generate_promoted_tracks",
         lambda user_taste_profile, active_campaigns_audio_features, user_play_context, limit: ranked_rows[:limit],
     )
-    monkeypatch.setattr(
-        recommendations,
-        "get_relevant_items",
-        lambda db, user_id, relevance_mode, threshold: relevant_items,
-    )
+    monkeypatch.setattr(recommendation_service, "get_relevant_items", lambda db, user_id, relevance_mode, threshold: relevant_items)
     monkeypatch.setattr(recommendations, "insert_promotion_impressions", lambda db, user_id, rows: len(rows))
 
 

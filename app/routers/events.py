@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.metrics import promotion_events
 from app.schemas import PromotionEventCreate, PromotionEventResponse
 from app.services.event_service import get_impression_by_id, insert_promotion_event
 
@@ -15,6 +16,7 @@ def log_event(event: PromotionEventCreate, db: Session = Depends(get_db)):
     try:
         promotion_event = insert_promotion_event(db, event.impression_id, event.event_type)
         db.commit()
+        promotion_events.inc()
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to log promotion event") from exc

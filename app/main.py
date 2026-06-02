@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from prometheus_client import make_asgi_app
 
 from app.routers import campaigns, events, health, tracks, users, recommendations
 from app.schemas import RootResponse
@@ -11,6 +12,9 @@ app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(campaigns.router, prefix="/campaigns", tags=["campaigns"])
 app.include_router(recommendations.router, prefix="/recommendations", tags=["recommendations"])
 app.include_router(events.router, tags=["events"])
+
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
 
 @app.get("/", response_model=RootResponse)
 def root():

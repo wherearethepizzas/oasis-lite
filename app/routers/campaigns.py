@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import Annotated
 
 from app.database import get_db
+from app.metrics import active_campaigns
 from app.services.campaign_service import get_campaign_by_id, get_campaign_metrics_by_id, get_all_campaign_metrics
 from app.services.utils import execute_query
 from app.schemas import ActiveCampaignResponse, CampaignMetricType, CampaignMetricsResponse, MessageResponse
@@ -30,6 +31,7 @@ def get_active_campaigns(db: Session = Depends(get_db)):
         params={"status":"active"},
     )
 
+    active_campaigns.set(len(campaigns))
     if len(campaigns) == 0:
         return {"message": "There are no active campaigns"}
     else:
