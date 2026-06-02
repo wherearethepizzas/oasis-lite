@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Oasis Lite Metrics</title>
+    <link rel="stylesheet" href="/dashboard/styles.css">
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Oasis Lite</p>
+          <h1>Metrics Dashboard</h1>
+        </div>
+        <div class="toolbar">
+          <span class="status-pill" id="api-status">Loading</span>
+          <button class="icon-button" id="refresh-dashboard" type="button" aria-label="Refresh dashboard" title="Refresh dashboard">
+            <span aria-hidden="true">Refresh</span>
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section class="kpi-grid" aria-label="Campaign key metrics">
+          <article class="metric-card">
+            <span class="metric-label">Active Campaigns</span>
+            <strong id="kpi-active-campaigns">--</strong>
+            <span class="metric-subtext">Current supply</span>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Impressions</span>
+            <strong id="kpi-impressions">--</strong>
+            <span class="metric-subtext">Campaign total</span>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">CTR</span>
+            <strong id="kpi-ctr">--</strong>
+            <span class="metric-subtext">Clicks / impressions</span>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Stream Rate</span>
+            <strong id="kpi-stream-rate">--</strong>
+            <span class="metric-subtext">Streams / impressions</span>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Save Rate</span>
+            <strong id="kpi-save-rate">--</strong>
+            <span class="metric-subtext">Saves / impressions</span>
+          </article>
+        </section>
+
+        <section class="runtime-panel" aria-label="Runtime metrics">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Prometheus</p>
+              <h2>Runtime Health</h2>
+            </div>
+          </div>
+          <div class="runtime-grid">
+            <div>
+              <span>Recommendation Requests</span>
+              <strong id="runtime-requests">--</strong>
+            </div>
+            <div>
+              <span>Average Latency</span>
+              <strong id="runtime-latency">--</strong>
+            </div>
+            <div>
+              <span>Tracks Served</span>
+              <strong id="runtime-served">--</strong>
+            </div>
+            <div>
+              <span>Promotion Events</span>
+              <strong id="runtime-events">--</strong>
+            </div>
+          </div>
+        </section>
+
+        <div class="dashboard-grid">
+          <section class="panel campaign-panel" aria-label="Campaign leaderboard">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Campaigns</p>
+                <h2>Leaderboard</h2>
+              </div>
+              <label class="field compact">
+                <span>Sort</span>
+                <select id="leaderboard-metric">
+                  <option value="stream_rate">Stream rate</option>
+                  <option value="click_through_rate">CTR</option>
+                  <option value="save_rate">Save rate</option>
+                  <option value="skip_rate">Skip rate</option>
+                  <option value="impressions">Impressions</option>
+                  <option value="clicks">Clicks</option>
+                  <option value="streams">Streams</option>
+                  <option value="saves">Saves</option>
+                  <option value="skips">Skips</option>
+                </select>
+              </label>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Campaign</th>
+                    <th>Impr.</th>
+                    <th>Clicks</th>
+                    <th>Streams</th>
+                    <th>Saves</th>
+                    <th>CTR</th>
+                    <th>Stream</th>
+                  </tr>
+                </thead>
+                <tbody id="leaderboard-body">
+                  <tr><td colspan="7" class="empty-cell">Loading campaigns</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel detail-panel" aria-label="Selected campaign metrics">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Selected</p>
+                <h2>Campaign Metrics</h2>
+              </div>
+              <form class="inline-form" id="campaign-form">
+                <label class="field">
+                  <span>Campaign ID</span>
+                  <input id="campaign-id" type="number" min="1" inputmode="numeric" placeholder="101">
+                </label>
+                <button type="submit">Load</button>
+              </form>
+            </div>
+            <div id="campaign-detail" class="detail-grid">
+              <div class="empty-state">Select a campaign to inspect its event rates.</div>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel recommendations-panel" aria-label="Promoted recommendation evaluation">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Recommendations</p>
+              <h2>Promoted Ranking</h2>
+            </div>
+            <form class="recommendation-form" id="recommendation-form">
+              <label class="field">
+                <span>User ID</span>
+                <input id="recommendation-user-id" type="text" placeholder="user_123" required>
+              </label>
+              <label class="field small">
+                <span>Limit</span>
+                <input id="recommendation-limit" type="number" min="1" max="50" value="10">
+              </label>
+              <label class="field">
+                <span>Mode</span>
+                <select id="recommendation-mode">
+                  <option value="track">Track</option>
+                  <option value="genre">Genre</option>
+                  <option value="artist">Artist</option>
+                </select>
+              </label>
+              <label class="field small">
+                <span>Threshold</span>
+                <input id="recommendation-threshold" type="number" min="1" value="1">
+              </label>
+              <button type="submit">Run</button>
+            </form>
+          </div>
+
+          <div class="recommendation-layout">
+            <div class="eval-grid" id="recommendation-metrics">
+              <div class="empty-state">Run a promoted ranking to view evaluation metrics.</div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Track</th>
+                    <th>Artist</th>
+                    <th>Genre</th>
+                    <th>Objective</th>
+                    <th>Final</th>
+                    <th>Relevance</th>
+                  </tr>
+                </thead>
+                <tbody id="recommendation-body">
+                  <tr><td colspan="7" class="empty-cell">No recommendations loaded</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/dashboard/app.js" defer></script>
+  </body>
+</html>

@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from prometheus_client import make_asgi_app
 
 from app.routers import campaigns, events, health, tracks, users, recommendations
@@ -15,6 +16,11 @@ app.include_router(events.router, tags=["events"])
 
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
+app.mount(
+    "/dashboard",
+    StaticFiles(directory="app/static/dashboard", html=True),
+    name="dashboard",
+)
 
 @app.get("/", response_model=RootResponse)
 def root():
