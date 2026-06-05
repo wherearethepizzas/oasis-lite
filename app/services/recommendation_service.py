@@ -14,6 +14,12 @@ from app.services.scoring_service import (
 from app.schemas import RecommendationRelevanceMode
 
 
+def calculate_reset_remaining_budget(daily_budget: Decimal, remaining_budget: Decimal) -> Decimal:
+    if remaining_budget < 0:
+        return max(Decimal("0.00"), daily_budget + remaining_budget)
+    return daily_budget
+
+
 def get_user_taste_by_id(db: Session, user_id: str):
     rows = execute_query(
         db,

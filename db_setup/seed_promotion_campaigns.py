@@ -17,6 +17,8 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
 
+MIN_TRACKS_PER_CAMPAIGN = 3
+MAX_TRACKS_PER_CAMPAIGN = 15
 OBJECTIVE_WEIGHTS = {
     "streams": 0.45,
     "saves": 0.25,
@@ -45,8 +47,13 @@ def get_engine() -> Engine:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Seed synthetic promotion_campaigns rows.")
-    parser.add_argument("--num-campaigns", type=int, default=500)
+    parser = argparse.ArgumentParser(description="Seed synthetic promotion campaign groups.")
+    parser.add_argument(
+        "--num-campaigns",
+        type=int,
+        default=500,
+        help="Number of campaign groups to generate. Each group seeds 3 to 15 promoted tracks.",
+    )
     parser.add_argument("--active-ratio", type=float, default=0.75)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
@@ -136,6 +143,18 @@ def _pair_weight(pair: dict[str, Any]) -> float:
     return 3.0 if has_useful_metadata else 1.0
 
 
+def group_pairs_by_artist(eligible_pairs: Sequence[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    pairs_by_artist: dict[Any, dict[str, dict[str, Any]]] = {}
+    for pair in eligible_pairs:
+        artist_tracks = pairs_by_artist.setdefault(pair["artist_id"], {})
+        artist_tracks.setdefault(str(pair["track_id"]), pair)
+    return [
+        list(artist_tracks.values())
+        for artist_tracks in pairs_by_artist.values()
+        if len(artist_tracks) >= MIN_TRACKS_PER_CAMPAIGN
+    ]
+
+
 def _date_range_for_status(status: str, rng: random.Random, today: date) -> tuple[date, date]:
     if status == "active":
         start_date = today - timedelta(days=rng.randint(0, 30))
@@ -160,12 +179,17 @@ def generate_campaign(
     active_ratio: float,
     rng: random.Random,
     today: date | None = None,
+    objective: str | None = None,
+    status: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> dict[str, Any]:
     """Generate one synthetic campaign using simple, explainable simulation choices."""
     current_date = today or date.today()
-    objective = weighted_choice(OBJECTIVE_WEIGHTS, rng)
-    status = _choose_status(active_ratio, rng)
-    start_date, end_date = _date_range_for_status(status, rng, current_date)
+    objective = objective or weighted_choice(OBJECTIVE_WEIGHTS, rng)
+    status = status or _choose_status(active_ratio, rng)
+    if start_date is None or end_date is None:
+        start_date, end_date = _date_range_for_status(status, rng, current_date)
 
     bid_low, bid_high = OBJECTIVE_BID_RANGES[objective]
     bid_weight = _random_decimal(rng, bid_low, bid_high, 4)
@@ -201,13 +225,42 @@ def generate_campaign(
     }
 
 
+def generate_campaign_group(
+    artist_pairs: Sequence[dict[str, Any]],
+    *,
+    active_ratio: float,
+    rng: random.Random,
+    today: date | None = None,
+) -> list[dict[str, Any]]:
+    """Generate one campaign group with 3-15 distinct tracks for the same artist."""
+    unique_pairs = list({str(pair["track_id"]): pair for pair in artist_pairs}.values())
+    if len(unique_pairs) < MIN_TRACKS_PER_CAMPAIGN:
+        raise ValueError(f"Campaign groups require at least {MIN_TRACKS_PER_CAMPAIGN} distinct tracks.")
+
+    current_date = today or date.today()
+    track_count = rng.randint(MIN_TRACKS_PER_CAMPAIGN, min(MAX_TRACKS_PER_CAMPAIGN, len(unique_pairs)))
+    selected_pairs = rng.sample(unique_pairs, k=track_count)
+    objective = weighted_choice(OBJECTIVE_WEIGHTS, rng)
+    status = _choose_status(active_ratio, rng)
+    start_date, end_date = _date_range_for_status(status, rng, current_date)
+    return [
+        generate_campaign(
+            pair,
+            active_ratio=active_ratio,
+            rng=rng,
+            today=current_date,
+            objective=objective,
+            status=status,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        for pair in selected_pairs
+    ]
+
+
 def upsert_campaigns(engine: Engine, campaigns: Sequence[dict[str, Any]]) -> int:
     if not campaigns:
         return 0
-    # Existing databases can add the idempotency key with:
-    # ALTER TABLE promotion_campaigns
-    #   ADD UNIQUE KEY uq_campaign_track_artist_objective_dates
-    #   (track_id, artist_id, objective, start_date, end_date);
     sql = """
         INSERT INTO promotion_campaigns (
             track_id, artist_id, objective, bid_weight, daily_budget, remaining_budget,
@@ -234,6 +287,8 @@ def upsert_campaigns(engine: Engine, campaigns: Sequence[dict[str, Any]]) -> int
 def print_summary(
     *,
     eligible_count: int,
+    eligible_artist_count: int,
+    attempted_groups: int,
     attempted: int,
     affected: int,
     skipped: int,
@@ -243,9 +298,11 @@ def print_summary(
     objective_counts = Counter(campaign["objective"] for campaign in campaigns)
     print("Promotion campaign seed summary")
     print(f"  eligible_track_artist_pairs_found: {eligible_count}")
-    print(f"  campaigns_attempted: {attempted}")
+    print(f"  eligible_artists_with_3_plus_tracks: {eligible_artist_count}")
+    print(f"  campaign_groups_attempted: {attempted_groups}")
+    print(f"  campaign_track_rows_attempted: {attempted}")
     print(f"  rows_inserted_or_updated_mysql_affected: {affected}")
-    print(f"  campaigns_skipped: {skipped}")
+    print(f"  campaign_track_rows_skipped: {skipped}")
     print("  count_by_status:")
     for status, count in sorted(status_counts.items()):
         print(f"    {status}: {count}")
@@ -264,25 +321,42 @@ def main() -> int:
         if not eligible_pairs:
             print("No eligible track-artist pairs found. Load music data before seeding campaigns.", file=sys.stderr)
             return 1
+        eligible_artist_groups = group_pairs_by_artist(eligible_pairs)
+        if not eligible_artist_groups:
+            print(
+                f"No artists with at least {MIN_TRACKS_PER_CAMPAIGN} eligible tracks found. "
+                "Load more music data before seeding campaigns.",
+                file=sys.stderr,
+            )
+            return 1
 
         campaigns: list[dict[str, Any]] = []
         used_active_track_objectives = fetch_existing_active_track_objectives(engine)
         skipped = 0
-        pair_weights = [_pair_weight(pair) for pair in eligible_pairs]
+        group_weights = [sum(_pair_weight(pair) for pair in artist_pairs) for artist_pairs in eligible_artist_groups]
 
-        for pair in rng.choices(eligible_pairs, weights=pair_weights, k=args.num_campaigns):
-            campaign = generate_campaign(pair, active_ratio=args.active_ratio, rng=rng)
-            active_key = (campaign["track_id"], campaign["objective"])
-            if campaign["status"] == "active" and active_key in used_active_track_objectives:
-                skipped += 1
+        for artist_pairs in rng.choices(eligible_artist_groups, weights=group_weights, k=args.num_campaigns):
+            campaign_group = generate_campaign_group(artist_pairs, active_ratio=args.active_ratio, rng=rng)
+            available_group = [
+                campaign
+                for campaign in campaign_group
+                if campaign["status"] != "active"
+                or (campaign["track_id"], campaign["objective"]) not in used_active_track_objectives
+            ]
+            if len(available_group) < MIN_TRACKS_PER_CAMPAIGN:
+                skipped += len(campaign_group)
                 continue
-            if campaign["status"] == "active":
-                used_active_track_objectives.add(active_key)
-            campaigns.append(campaign)
+
+            for campaign in available_group:
+                if campaign["status"] == "active":
+                    used_active_track_objectives.add((campaign["track_id"], campaign["objective"]))
+                campaigns.append(campaign)
 
         affected = upsert_campaigns(engine, campaigns)
         print_summary(
             eligible_count=len(eligible_pairs),
+            eligible_artist_count=len(eligible_artist_groups),
+            attempted_groups=args.num_campaigns,
             attempted=len(campaigns),
             affected=affected,
             skipped=skipped,
