@@ -3,7 +3,7 @@
 Oasis Lite is a Spotify-style backend simulation for music promotion allocation
 and recommendation. The database separates source music metadata, normalized
 artists/tags, user listening history, synthetic promotion supply, and runtime
-recommendation logs.
+recommendation logs. Check out [my blog](https://personal-website.markmugokimani.workers.dev/blog-posts) for more info.
 
 ## 1. Start MySQL with Docker
 
@@ -89,7 +89,7 @@ promotion campaign data.
 
 ```bash
 conda run -n oasis-lite python seed_promotion_campaigns.py \
-  --num-campaigns 500 \
+  --num-campaigns 30 \
   --active-ratio 0.75 \
   --seed 42
 ```
