@@ -144,6 +144,7 @@ CREATE TABLE IF NOT EXISTS promotion_campaigns (
     bid_weight DECIMAL(6,4) NOT NULL DEFAULT 0.0000,
     daily_budget DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     remaining_budget DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    budget_date DATE NULL,
     target_genre VARCHAR(128) NULL,
     max_impressions_per_user_per_day INT NOT NULL DEFAULT 3,
     start_date DATE NOT NULL,

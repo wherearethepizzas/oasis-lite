@@ -325,6 +325,7 @@ class PromotionCampaign(Base):
     bid_weight = Column(Numeric(6, 4), nullable=False, server_default=text("0.0000"))
     daily_budget = Column(Numeric(10, 2), nullable=False, server_default=text("0.00"))
     remaining_budget = Column(Numeric(10, 2), nullable=False, server_default=text("0.00"))
+    budget_date = Column(Date, nullable=True)
     target_genre = Column(String(128), nullable=True)
     max_impressions_per_user_per_day = Column(Integer, nullable=False, server_default=text("3"))
     start_date = Column(Date, nullable=False)

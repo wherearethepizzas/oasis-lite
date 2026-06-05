@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from math import log2
 from typing import Any
 
@@ -14,6 +14,17 @@ AUDIO_FEATURES = (
     "instrumentalness",
     "valence",
 )
+MONEY_QUANTUM = Decimal("0.01")
+BASE_IMPRESSION_COST = Decimal("1.00")
+RANK_COST_MULTIPLIERS = {
+    1: Decimal("1.50"),
+    2: Decimal("1.20"),
+    3: Decimal("1.10"),
+}
+OBJECTIVE_COST_MULTIPLIERS = {
+    "streams": Decimal("1.20"),
+    "saves": Decimal("1.10"),
+}
 
 
 def _to_float(value: Any) -> float | None:
@@ -27,8 +38,27 @@ def _to_float(value: Any) -> float | None:
         return None
 
 
+def _to_money(value: Any) -> Decimal:
+    if value is None:
+        return Decimal("0.00")
+    if isinstance(value, Decimal):
+        return value.quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
+    return Decimal(str(value)).quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
+
+
 def _clamp(value: float, minimum: float = 0.0, maximum: float = 1.0) -> float:
     return max(minimum, min(maximum, value))
+
+
+def calculate_cost_per_impression(recommendation: dict[str, Any]) -> Decimal:
+    rank = recommendation["rank_position"]
+    objective = recommendation["objective"]
+    rank_multiplier = RANK_COST_MULTIPLIERS.get(rank, Decimal("1.00"))
+    objective_multiplier = OBJECTIVE_COST_MULTIPLIERS.get(objective, Decimal("1.00"))
+    return (BASE_IMPRESSION_COST * rank_multiplier * objective_multiplier).quantize(
+        MONEY_QUANTUM,
+        rounding=ROUND_HALF_UP,
+    )
 
 
 def _normalize_weighted_rows(rows: list[dict[str, Any]], id_key: str, name_key: str) -> list[dict[str, Any]]:
@@ -141,9 +171,12 @@ def generate_promoted_tracks(
 ) -> list[dict[str, Any]]:
     candidates = active_campaigns_audio_features or []
     scored_candidates: list[dict[str, Any]] = []
+    campaign_budgets: dict[Any, Decimal] = {}
 
     for candidate in candidates:
         candidate_dict = dict(candidate)
+        campaign_id = candidate_dict.get("campaign_id")
+        campaign_budgets.setdefault(campaign_id, _to_money(candidate_dict.get("remaining_budget")))
         relevance_score = _calculate_relevance(user_taste_profile, candidate_dict)
         campaign_score = _clamp(_to_float(candidate_dict.get("bid_weight")) or 0.0)
         diversity_bonus, fatigue_penalty = _calculate_diversity_and_fatigue(candidate_dict, user_play_context)
@@ -163,6 +196,7 @@ def generate_promoted_tracks(
                 "genre": candidate_dict.get("genre"),
                 "campaign_id": candidate_dict.get("campaign_id"),
                 "objective": candidate_dict.get("objective"),
+                "remaining_budget": campaign_budgets[campaign_id],
                 "relevance_score": round(_clamp(relevance_score), 6),
                 "campaign_score": round(campaign_score, 6),
                 "diversity_bonus": round(diversity_bonus, 6),
@@ -179,9 +213,28 @@ def generate_promoted_tracks(
         ),
     )
 
-    ranked = scored_candidates[:limit]
-    for index, row in enumerate(ranked, start=1):
-        row["rank_position"] = index
+    # Budget-aware ranking
+    ranked: list[dict[str, Any]] = []
+    pending = scored_candidates[:]
+    while pending and len(ranked) < limit:
+        next_rank = len(ranked) + 1
+        accepted_index = None
+        for index, row in enumerate(pending):
+            row["rank_position"] = next_rank
+            cost = calculate_cost_per_impression(row)
+            campaign_id = row["campaign_id"]
+            if campaign_budgets[campaign_id] >= cost:
+                campaign_budgets[campaign_id] -= cost
+                ranked.append(row)
+                accepted_index = index
+                break
+
+        if accepted_index is None:
+            break
+        pending.pop(accepted_index)
+
+    for row in ranked:
+        row.pop("remaining_budget", None)
     return ranked
 
 

@@ -16,6 +16,7 @@ from app.services.recommendation_service import (
     get_user_taste_by_id,
     insert_promotion_impressions,
     build_recommendation_metrics,
+    reset_budget,
 )
 from app.services.scoring_service import (
     generate_promoted_tracks,
@@ -42,6 +43,7 @@ def get_promoted_recommendations(
         if user_taste_profile is None:
             raise HTTPException(status_code=404, detail="User taste profile not found")
 
+        reset_budget(db)
         active_campaigns_audio_features = get_active_campaigns_audio_features(db, user_id)
         if not active_campaigns_audio_features:
             metrics = build_recommendation_metrics(

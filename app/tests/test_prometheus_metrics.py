@@ -6,6 +6,7 @@ def test_prometheus_metrics_are_exported(client, monkeypatch):
     from app.services import recommendation_service
 
     monkeypatch.setattr(recommendations, "get_user_taste_by_id", lambda db, user_id: {"user_id": user_id})
+    monkeypatch.setattr(recommendations, "reset_budget", lambda db: None)
     monkeypatch.setattr(recommendations, "get_active_campaigns_audio_features", lambda db, user_id: [{"track_id": "raw"}])
     monkeypatch.setattr(recommendations, "get_user_play_history_by_id", lambda user_id, db: {})
     monkeypatch.setattr(
