@@ -1,11 +1,11 @@
-# Oasis Lite Database Layer
+# Oasis Lite
 
 Oasis Lite is a Spotify-style backend simulation for music promotion allocation
 and recommendation. The database separates source music metadata, normalized
 artists/tags, user listening history, synthetic promotion supply, and runtime
 recommendation logs. Check out [my blog](https://personal-website.markmugokimani.workers.dev/blog-posts) for more info.
-
-## 1. Start MySQL with Docker
+## Setting up the Database
+### 1. Start MySQL with Docker
 
 ```bash
 docker run --name oasis-lite-mysql \
@@ -21,7 +21,7 @@ If the container already exists:
 docker start oasis-lite-mysql
 ```
 
-## 2. Run the schema migration
+### 2. Run the schema migration
 
 ```bash
 docker exec -it oasis-lite-mysql mysql -h 127.0.0.1 -P 3306 -u root -poasis_password oasis_lite < 001_create_music_schema.sql
@@ -38,15 +38,15 @@ The migration creates normalized tables for:
 - promotion impressions and events
 
 
-## 3. Install Python dependencies in the conda environment
+### 3. Install Python dependencies in the conda environment
 
 Use the project conda environment:
 
 ```bash
-conda install -n oasis-lite -c conda-forge sqlalchemy pymysql pandas openpyxl
+conda install -n oasis-lite -c conda-forge sqlalchemy pymysql pandas openpyxl fastapi uvicorn prometheus_client
 ```
 
-## 4. Configure database environment variables
+### 4. Configure database environment variables
 
 ```bash
 export DB_HOST=127.0.0.1
@@ -56,7 +56,7 @@ export DB_PASSWORD=oasis_password
 export DB_NAME=oasis_lite
 ```
 
-## 5. Load music and listening datasets
+### 5. Load music and listening datasets
 
 The loader expects:
 
@@ -80,7 +80,7 @@ audio features: `danceability`, `energy`, `acousticness`, `instrumentalness`,
 `valence`, and `tempo`. Listening-history rows whose `track_id` does not exist
 in `tracks` are skipped with a warning.
 
-## 6. Seed synthetic promotion campaigns
+### 6. Seed synthetic promotion campaigns
 
 `promotion_campaigns` represents the supply of tracks that are eligible to be
 promoted by the recommendation backend. These rows are synthetic because the
@@ -103,3 +103,43 @@ The script does not seed `promotion_impressions` or `promotion_events`.
 Those tables are runtime logs: the recommendation API inserts impressions
 when promoted recommendations are served, and events when users click, stream,
 skip, or save.
+
+## Running the Application
+
+Make sure MySQL is running, the schema has been migrated, and the database
+environment variables from the setup section are exported in your shell.
+
+Start the FastAPI application with Uvicorn:
+
+```bash
+conda run -n oasis-lite uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+The API will be available at:
+
+- `http://127.0.0.1:8000/`
+- `http://127.0.0.1:8000/health`
+
+### View the API docs
+
+FastAPI includes an interactive Swagger UI docs viewer. With the application
+running, open:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+FastAPI also provides ReDoc documentation at:
+
+```text
+http://127.0.0.1:8000/redoc
+```
+
+### View the dashboard
+
+The static dashboard is served by the same FastAPI app. With the application
+running, open:
+
+```text
+http://127.0.0.1:8000/dashboard/
+```
